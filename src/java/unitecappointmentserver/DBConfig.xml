@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>Database Configuration Properties</comment>
+<entry key="dbDriver">com.mysql.jdbc.Driver</entry>
+<entry key="dbUrl">jdbc:mysql://localhost:3306/unitecappointmentdb</entry>
+<entry key="dbusername">root</entry>
+<entry key="dbpassword">changeit</entry>
+<entry key="dbStudentTable">student</entry>
+<entry key="dbLecturerTable">lecturer</entry>
+<entry key="dbAppointmentTable">appointment</entry>
+<entry key="dbStudentLecturerAssignmentTable">studentlecturerassignment</entry>
+<entry key="dbUsernameAtt">username</entry>
+<entry key="dbTitleAtt">title</entry>
+<entry key="dbFirstNameAtt">firstname</entry>
+<entry key="dbLastNameAtt">lastname</entry>
+<entry key="dbDepartmentAtt">department</entry>
+<entry key="dbPasswordAtt">password</entry>
+<entry key="dbSaltAtt">salt</entry>
+<entry key="dbDateAtt">date</entry>
+<entry key="dbStartAtt">start</entry>
+<entry key="dbEndAtt">end</entry>
+<entry key="dbLecturerUserNameAtt">lecturerusername</entry>
+<entry key="dbStudentUserNameAtt">studentusername</entry>
+<entry key="dbSubjectAtt">subject</entry>
+<entry key="dbIsActiveAtt">isActive</entry>
+<entry key="dbEmailAtt">email</entry>
+</properties>
