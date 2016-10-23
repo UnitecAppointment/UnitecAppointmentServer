@@ -66,6 +66,7 @@ public class AppointementServices {
     private final PreparedStatement addLecturerAppointment;
     private final PreparedStatement getAssignedLecturers;
     private final PreparedStatement getAvailableAppointments;
+    private final PreparedStatement getAppointment;
     private final PreparedStatement bookAppointment;
     private final PreparedStatement getStudentBookedAppointment;
     private final PreparedStatement getLecturerBookedAppointment;
@@ -133,6 +134,9 @@ public class AppointementServices {
         getAvailableAppointments = connection.prepareStatement("SELECT * FROM "
                 + dbAppointmentTable + " WHERE " + dbLecturerUserNameAtt + " = ? "
                 + "AND " + dbIsActiveAtt + " = 'available'");
+        getAppointment = connection.prepareStatement("SELECT * FROM " + dbAppointmentTable + " WHERE "
+                + dbDateAtt + " = ? AND " + dbStartAtt + " = ? AND " + dbEndAtt + " = ? AND "
+                + dbLecturerUserNameAtt + " = ?");
         bookAppointment = connection.prepareStatement("UPDATE " + dbAppointmentTable
                 + " SET " + dbIsActiveAtt + " = 'booked', "
                 + dbStudentUserNameAtt + " = ? WHERE " + dbLecturerUserNameAtt + " = ? AND "
@@ -269,7 +273,7 @@ public class AppointementServices {
                 Date appointmentDate = dateFormat.parse(year + "-" + month + "-" + day);
                 Date appointmentStart = timeFormat.parse(startHour + ":" + startMinute);
                 Date appointmentEnd = timeFormat.parse(endHour + ":" + endMinute);
-                
+
                 Calendar calendar = Calendar.getInstance();
                 if (isDaily.compareTo("true") == 0) {
                     calendar.setTime(appointmentDate);
@@ -438,91 +442,108 @@ public class AppointementServices {
             String date = makeAppointmentDetails.getString("date");
             String start = makeAppointmentDetails.getString("start");
             String end = makeAppointmentDetails.getString("end");
-            bookAppointment.setString(1, studentUsername);
-            bookAppointment.setString(2, lecturerUserName);
-            bookAppointment.setString(3, date);
-            bookAppointment.setString(4, start);
-            bookAppointment.setString(5, end);
-            int result = bookAppointment.executeUpdate();
-            getLecturer.setString(1, lecturerUserName);
-            ResultSet resultSet1 = getLecturer.executeQuery();
-            getStudent.setString(1, studentUsername);
-            ResultSet resultSet2 = getStudent.executeQuery();
-            if (result != 0 && resultSet1.first() && resultSet2.first()) {
-                String lecturerEmail = resultSet1.getString(dbEmailAtt);
-                String studentFirstName = resultSet2.getString(dbFirstNameAtt);
-                String studentLastName = resultSet2.getString(dbLastNameAtt);
-                MimeMessage message = new MimeMessage(mailSession);
-                try {
-                    InternetAddress[] recipientAddress = {new InternetAddress(lecturerEmail)};
-                    InternetAddress senderAddress = new InternetAddress(mailSession.getProperty("mail.from"));
-                    message.addHeaderLine("method=REQUEST");
-                    message.addHeaderLine("charset=UTF-8");
-                    message.addHeaderLine("component=VEVENT");
-                    message.setFrom(senderAddress);
-                    message.setRecipients(Message.RecipientType.TO, recipientAddress);
-                    message.setSubject("Appointment Request From " + studentFirstName + " "
-                            + studentLastName);
-                    Calendar calendar = Calendar.getInstance();
-                    message.setSentDate(calendar.getTime());
 
-                    StringBuilder stringBuilder = new StringBuilder();
-                    StringBuilder buffer = stringBuilder.append("BEGIN:VCALENDAR\n"
-                            + "PRODID:-//Microsoft Corporation//Outlook 9.0 MIMEDIR//EN\n"
-                            + "VERSION:2.0\n"
-                            + "METHOD:REQUEST\n"
-                            + "BEGIN:VEVENT\n"
-                            + "ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:MAILTO:" + recipientAddress[0].toString() + "\n"
-                            + "ORGANIZER:MAILTO:" + senderAddress.toString() + "\n"
-                            + "DTSTART:" + date.replace("-", "") + "T" + start.replace(":", "") + "00Z\n"
-                            + "DTEND:" + date.replace("-", "") + "T" + end.replace(":", "") + "00Z\n"
-                            + "LOCATION:Lecturer office\n"
-                            + "TRANSP:OPAQUE\n"
-                            + "SEQUENCE:0\n"
-                            + "UID:040000008200E00074C5B7101A82E00800000000002FF466CE3AC5010000000000000000100\n"
-                            + " 000004377FE5C37984842BF9440448399EB02\n"
-                            + "DTSTAMP:" + calendar.get(Calendar.YEAR) + (calendar.get(Calendar.MONTH) + 1) + calendar.get(Calendar.DAY_OF_MONTH) + "T"
-                            + calendar.get(Calendar.HOUR_OF_DAY) + calendar.get(Calendar.MINUTE) + calendar.get(Calendar.SECOND) + "Z\n"
-                            + "CATEGORIES:Meeting\n"
-                            + "DESCRIPTION:Student meeting.\n\n"
-                            + "SUMMARY:Student meeting request\n"
-                            + "PRIORITY:5\n"
-                            + "CLASS:PUBLIC\n"
-                            + "BEGIN:VALARM\n"
-                            + "TRIGGER:PT1440M\n"
-                            + "ACTION:DISPLAY\n"
-                            + "DESCRIPTION:Reminder\n"
-                            + "END:VALARM\n"
-                            + "END:VEVENT\n"
-                            + "END:VCALENDAR");
+            getAppointment.setString(1, date);
+            getAppointment.setString(2, start);
+            getAppointment.setString(3, end);
+            getAppointment.setString(4, lecturerUserName);
+            ResultSet resultSet = getAppointment.executeQuery();
+            if (resultSet.first()) {
+                String isActive = resultSet.getString(dbIsActiveAtt);
 
-                    // Create the message part
-                    BodyPart messageBodyPart = new MimeBodyPart();
+                if (isActive.compareTo("available") == 0) {
+                    bookAppointment.setString(1, studentUsername);
+                    bookAppointment.setString(2, lecturerUserName);
+                    bookAppointment.setString(3, date);
+                    bookAppointment.setString(4, start);
+                    bookAppointment.setString(5, end);
+                    int result = bookAppointment.executeUpdate();
+                    getLecturer.setString(1, lecturerUserName);
+                    ResultSet resultSet1 = getLecturer.executeQuery();
+                    getStudent.setString(1, studentUsername);
+                    ResultSet resultSet2 = getStudent.executeQuery();
+                    if (result != 0 && resultSet1.first() && resultSet2.first()) {
+                        String lecturerEmail = resultSet1.getString(dbEmailAtt);
+                        String studentFirstName = resultSet2.getString(dbFirstNameAtt);
+                        String studentLastName = resultSet2.getString(dbLastNameAtt);
+                        MimeMessage message = new MimeMessage(mailSession);
+                        try {
+                            InternetAddress[] recipientAddress = {new InternetAddress(lecturerEmail)};
+                            InternetAddress senderAddress = new InternetAddress(mailSession.getProperty("mail.from"));
+                            message.addHeaderLine("method=REQUEST");
+                            message.addHeaderLine("charset=UTF-8");
+                            message.addHeaderLine("component=VEVENT");
+                            message.setFrom(senderAddress);
+                            message.setRecipients(Message.RecipientType.TO, recipientAddress);
+                            message.setSubject("Appointment Request From " + studentFirstName + " "
+                                    + studentLastName);
+                            Calendar calendar = Calendar.getInstance();
+                            message.setSentDate(calendar.getTime());
 
-                    // Fill the message
-                    messageBodyPart.setHeader("Content-Class", "urn:content-  classes:calendarmessage");
-                    messageBodyPart.setHeader("Content-ID", "calendar_message");
-                    messageBodyPart.setDataHandler(new DataHandler(
-                            new ByteArrayDataSource(buffer.toString(), "text/calendar")));// very important
+                            StringBuilder stringBuilder = new StringBuilder();
+                            StringBuilder buffer = stringBuilder.append("BEGIN:VCALENDAR\n"
+                                    + "PRODID:-//Microsoft Corporation//Outlook 9.0 MIMEDIR//EN\n"
+                                    + "VERSION:2.0\n"
+                                    + "METHOD:REQUEST\n"
+                                    + "BEGIN:VEVENT\n"
+                                    + "ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=FALSE:MAILTO:" + recipientAddress[0].toString() + "\n"
+                                    + "ORGANIZER:MAILTO:" + senderAddress.toString() + "\n"
+                                    + "DTSTART:" + date.replace("-", "") + "T" + start.replace(":", "") + "00Z\n"
+                                    + "DTEND:" + date.replace("-", "") + "T" + end.replace(":", "") + "00Z\n"
+                                    + "LOCATION:Lecturer office\n"
+                                    + "TRANSP:OPAQUE\n"
+                                    + "SEQUENCE:0\n"
+                                    + "UID:040000008200E00074C5B7101A82E00800000000002FF466CE3AC5010000000000000000100\n"
+                                    + " 000004377FE5C37984842BF9440448399EB02\n"
+                                    + "DTSTAMP:" + calendar.get(Calendar.YEAR) + (calendar.get(Calendar.MONTH) + 1) + calendar.get(Calendar.DAY_OF_MONTH) + "T"
+                                    + calendar.get(Calendar.HOUR_OF_DAY) + calendar.get(Calendar.MINUTE) + calendar.get(Calendar.SECOND) + "Z\n"
+                                    + "CATEGORIES:Meeting\n"
+                                    + "DESCRIPTION:Student meeting.\n\n"
+                                    + "SUMMARY:Student meeting request\n"
+                                    + "PRIORITY:5\n"
+                                    + "CLASS:PUBLIC\n"
+                                    + "BEGIN:VALARM\n"
+                                    + "TRIGGER:PT1440M\n"
+                                    + "ACTION:DISPLAY\n"
+                                    + "DESCRIPTION:Reminder\n"
+                                    + "END:VALARM\n"
+                                    + "END:VEVENT\n"
+                                    + "END:VCALENDAR");
 
-                    // Create a Multipart
-                    Multipart multipart = new MimeMultipart();
+                            // Create the message part
+                            BodyPart messageBodyPart = new MimeBodyPart();
 
-                    // Add part one
-                    multipart.addBodyPart(messageBodyPart);
+                            // Fill the message
+                            messageBodyPart.setHeader("Content-Class", "urn:content-  classes:calendarmessage");
+                            messageBodyPart.setHeader("Content-ID", "calendar_message");
+                            messageBodyPart.setDataHandler(new DataHandler(
+                                    new ByteArrayDataSource(buffer.toString(), "text/calendar")));// very important
 
-                    // Put parts in message
-                    message.setContent(multipart);
-                    Transport.send(message);
-                } catch (MessagingException | IOException ex) {
-                    Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
+                            // Create a Multipart
+                            Multipart multipart = new MimeMultipart();
+
+                            // Add part one
+                            multipart.addBodyPart(messageBodyPart);
+
+                            // Put parts in message
+                            message.setContent(multipart);
+                            Transport.send(message);
+                        } catch (MessagingException | IOException ex) {
+                            Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+
+                        return Json.createObjectBuilder().add("result", "true").build().toString();
+                    } else {
+                        return Json.createObjectBuilder().
+                                add("result", "false").build().toString();
+                    }
+                } else {
+                    return Json.createObjectBuilder().add("result", "booked").build().toString();
                 }
-
-                return Json.createObjectBuilder().add("result", "true").build().toString();
             } else {
-                return Json.createObjectBuilder().
-                        add("result", "false").build().toString();
+                return Json.createObjectBuilder().add("result", "error").build().toString();
             }
+
         } catch (SQLException ex) {
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
@@ -621,8 +642,8 @@ public class AppointementServices {
             String firstName = cancelAppointmentDetails.getString("firstName");
             String lastName = cancelAppointmentDetails.getString("lastName");
             String type = cancelAppointmentDetails.getString("type");
-            int result = 0;
-            ResultSet resultSet = null;
+            int result;
+            ResultSet resultSet;
             if (type.compareTo("student") == 0) {
                 studentCancelAppointment.setString(1, username);
                 studentCancelAppointment.setString(2, date);
