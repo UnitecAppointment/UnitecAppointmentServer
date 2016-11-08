@@ -51,28 +51,31 @@ import javax.mail.internet.MimeMultipart;
 import javax.mail.util.ByteArrayDataSource;
 
 /**
+ * Web Service definition and implementation class
  *
- * @author Group2
+ * @author Marzouq Almarzooq (1380949)
+ * @author Nawaf Altuwayjiri (1377387)
  */
-@WebService(serviceName = "AppointementServices")
+@WebService(serviceName = "AppointementServices")                       //web services name
 public class AppointementServices {
 
-    @Resource(lookup = "mail/AppointmentMailSession")
-    private Session mailSession;
-
-    private final Connection connection;
-    private final PreparedStatement getStudent;
-    private final PreparedStatement getLecturer;
-    private final PreparedStatement getLecturerAppointmentsByDate;
-    private final PreparedStatement addLecturerAppointment;
-    private final PreparedStatement getAssignedLecturers;
-    private final PreparedStatement getAvailableAppointments;
-    private final PreparedStatement getAppointment;
-    private final PreparedStatement bookAppointment;
-    private final PreparedStatement getStudentBookedAppointment;
-    private final PreparedStatement getLecturerBookedAppointment;
-    private final PreparedStatement studentCancelAppointment;
-    private final PreparedStatement lecturerCancelAppointment;
+    @Resource(lookup = "mail/AppointmentMailSession")                   //mail session lookup from server
+    private Session mailSession;                                        //mail session object
+    private final Connection connection;                                //db connection
+    //SQL prepared statements
+    private final PreparedStatement getStudent;                         //get students 
+    private final PreparedStatement getLecturer;                        //get lecturer 
+    private final PreparedStatement getLecturerAppointmentsByDate;      //get lecturer appointments by date 
+    private final PreparedStatement addLecturerAppointment;             //get lecturer appointments 
+    private final PreparedStatement getAssignedLecturers;               //get student assigned lecturers  
+    private final PreparedStatement getAvailableAppointments;           //get available appointments
+    private final PreparedStatement getAppointment;                     //get specific appointment
+    private final PreparedStatement bookAppointment;                    //book specific appointment
+    private final PreparedStatement getStudentBookedAppointment;        //get booked appointments for a student
+    private final PreparedStatement getLecturerBookedAppointment;       //get booked appointments for a lecturer
+    private final PreparedStatement studentCancelAppointment;           //cancel a booked appointment for a student
+    private final PreparedStatement lecturerCancelAppointment;          //cancel a booked appointment for a lecturer
+    //DB table names and table attributes
     private final String dbStudentTable;
     private final String dbLecturerTable;
     private final String dbAppointmentTable;
@@ -93,12 +96,21 @@ public class AppointementServices {
     private final String dbSubjectAtt;
     private final String dbEmailAtt;
 
-    //identify of all the database table and attrebute
+    /**
+     * Web services constructor, connects to db, and prepares all SQL statements
+     *
+     * @throws java.io.IOException
+     * @throws java.lang.ClassNotFoundException
+     * @throws java.sql.SQLException
+     */
     public AppointementServices() throws IOException, ClassNotFoundException, SQLException {
+        //load db properties file 
         Properties properties = new Properties();
         properties.loadFromXML(getClass().getResourceAsStream("DBConfig.xml"));
+        //db driver and name
         String dbDriver = properties.get("dbDriver").toString();
         String dbUrl = properties.get("dbUrl").toString();
+        //obtain sb table names and table attributes from loaded db properties file
         dbStudentTable = properties.get("dbStudentTable").toString();
         dbLecturerTable = properties.get("dbLecturerTable").toString();
         dbAppointmentTable = properties.get("dbAppointmentTable").toString();
@@ -118,11 +130,12 @@ public class AppointementServices {
         dbIsActiveAtt = properties.get("dbIsActiveAtt").toString();
         dbSubjectAtt = properties.getProperty("dbSubjectAtt");
         dbEmailAtt = properties.getProperty("dbEmailAtt");
+        //connect to db using driver, location, and db admin user details
         String dbUserName = properties.get("dbusername").toString();
         String dbPassword = properties.get("dbpassword").toString();
         Class.forName(dbDriver);
-        //this is the condetion of login details to database
         connection = DriverManager.getConnection(dbUrl, dbUserName, dbPassword);
+        //sql prepared statement definition
         getStudent = connection.prepareStatement("SELECT * FROM " + dbStudentTable + " WHERE " + dbUsernameAtt + " = ?");
         getLecturer = connection.prepareStatement("SELECT * FROM " + dbLecturerTable + " WHERE " + dbUsernameAtt + " = ?");
         getLecturerAppointmentsByDate = connection.prepareStatement("SELECT * FROM "
@@ -157,22 +170,22 @@ public class AppointementServices {
     }
 
     /**
-     * Web service operation
+     * Web service operation for logging in user
      *
      * @param userLoginDetails
      * @return login result
      */
-    //connection between server and android logindetials
     @WebMethod(operationName = "login")
     public String login(@WebParam(name = "userLoginDetails") String userLoginDetails) {
+        //obtain username and password from json
         JsonObject loginDetails = Json.createReader(new StringReader(userLoginDetails)).readObject();
         JsonObject result;
         String username = loginDetails.getString("username");
         String password = loginDetails.getString("password");
-        //this is condition statement wether its true or false 
         boolean isStudentFound = false;
         boolean isLecturerFound = false;
         ResultSet resultSet = null;
+        //lookup user record using username
         try {
             getStudent.setString(1, username);
             resultSet = getStudent.executeQuery();
@@ -187,30 +200,39 @@ public class AppointementServices {
         }
 
         if ((isStudentFound || isLecturerFound) && resultSet != null) {
+            //if user name found
             try {
+                //obtain user details
                 String firstName = resultSet.getString(dbFirstNameAtt);
                 String lastName = resultSet.getString(dbLastNameAtt);
                 String userPassword = resultSet.getString(dbPasswordAtt);
                 String userSalt = resultSet.getString(dbSaltAtt);
-                //this is to check if the password compatible with userpassword or not
+                
+                //obtain salt for user and decode from string to bytes
                 Base64.Decoder decoder = Base64.getDecoder();
                 byte[] salt = decoder.decode(userSalt);
 
+                //hash supplied password and salt
                 KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
                 SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
                 byte[] hash = secretKeyFactory.generateSecret(keySpec).getEncoded();
 
+                //encode hash back to string
                 Base64.Encoder encoder = Base64.getEncoder();
                 String hashedPassword = encoder.encodeToString(hash);
 
+                //compare string hash with password hash from db
                 if (hashedPassword.compareTo(userPassword) == 0) {
+                    //password correct
                     if (isStudentFound) {
+                        //student user succesfyul login
                         result = Json.createObjectBuilder()
                                 .add("result", "true")
                                 .add("user", "student")
                                 .add("firstName", firstName)
                                 .add("lastName", lastName).build();
                     } else {
+                        //lecturer user successful login
                         String title = resultSet.getString(dbTitleAtt);
                         String department = resultSet.getString(dbDepartmentAtt);
                         result = Json.createObjectBuilder()
@@ -222,15 +244,18 @@ public class AppointementServices {
                                 .add("department", department).build();
                     }
                 } else {
+                    //password incorrect
                     result = Json.createObjectBuilder()
                             .add("result", "false").build();
                 }
             } catch (SQLException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                //server error
                 Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
                 result = Json.createObjectBuilder()
                         .add("result", "error").build();
             }
         } else {
+            //no user found
             result = Json.createObjectBuilder()
                     .add("result", "false").build();
         }
@@ -238,14 +263,14 @@ public class AppointementServices {
     }
 
     /**
-     * Web service operation
+     * Web service operation for creating appointment
      *
      * @param appointmentDetails
      * @return make appointment result
      */
     @WebMethod(operationName = "createAppointment")
     public String createAppointment(@WebParam(name = "appointmentDetails") String appointmentDetails) {
-
+        //obtain create appointment detials
         JsonObject makeAppointmentDetails = Json.createReader(new StringReader(appointmentDetails)).readObject();
         String username = makeAppointmentDetails.getString("username");
         String day = makeAppointmentDetails.getString("day");
@@ -259,6 +284,7 @@ public class AppointementServices {
         String isWeekly = makeAppointmentDetails.getString("isWeekly");
         String recurrence = makeAppointmentDetails.getString("recurrence");
 
+        //number of recurrences if creating appointment has multiple recurrences 
         int repeat;
         if (recurrence.isEmpty()) {
             repeat = 1;
@@ -266,15 +292,19 @@ public class AppointementServices {
             repeat = Integer.parseInt(recurrence);
         }
 
+        //date time formating to store in db
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
         SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
 
+        //repeat for number of ocurrences
         for (int i = 0; i < repeat; i++) {
             try {
+                //obtain date objects for caluclations from string date and time given format
                 Date appointmentDate = dateFormat.parse(year + "-" + month + "-" + day);
                 Date appointmentStart = timeFormat.parse(startHour + ":" + startMinute);
                 Date appointmentEnd = timeFormat.parse(endHour + ":" + endMinute);
 
+                //determine type of reocuurence weekly or dialy
                 Calendar calendar = Calendar.getInstance();
                 if (isDaily.compareTo("true") == 0) {
                     calendar.setTime(appointmentDate);
@@ -286,53 +316,62 @@ public class AppointementServices {
                     appointmentDate = calendar.getTime();
                 }
 
+                // get lecturer current appointments
                 getLecturerAppointmentsByDate.setString(1, username);
                 getLecturerAppointmentsByDate.setString(2, dateFormat.format(appointmentDate));
                 ResultSet resultSet = getLecturerAppointmentsByDate.executeQuery();
                 boolean isFound = resultSet.first();
 
                 if (isFound) {
+                    //if lecturer has existing appointments then check for clash
                     do {
                         Date startTime = timeFormat.parse(resultSet.getString(dbStartAtt));
                         Date endTime = timeFormat.parse(resultSet.getString(dbEndAtt));
                         if (startTime.before(appointmentEnd) && appointmentStart.before(endTime)) {
+                            //clash exist cannot make appointment
                             return Json.createObjectBuilder().add("result", "false").build().toString();
                         }
                     } while (resultSet.next());
                 }
 
+                //no clash intialise prepare statement with new appointment details
                 addLecturerAppointment.setString(1, dateFormat.format(appointmentDate));
                 addLecturerAppointment.setString(2, timeFormat.format(appointmentStart));
                 addLecturerAppointment.setString(3, timeFormat.format(appointmentEnd));
                 addLecturerAppointment.setString(4, username);
                 addLecturerAppointment.setString(5, "available");
+                //create appointment
                 addLecturerAppointment.executeUpdate();
 
             } catch (ParseException | SQLException ex) {
+                //server error
                 Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
                 return Json.createObjectBuilder().add("result", "error").build().toString();
             }
         }
+        //appoitment created return conformation result
         return Json.createObjectBuilder().add("result", "true").build().toString();
     }
 
     /**
-     * Web service operation
+     * Web service operation for obtaining lecturers for a given student
      *
      * @param userDetails
-     * @return
+     * @return list of assigned lecturers to student
      */
     @WebMethod(operationName = "makeAppointment")
     public String makeAppointment(@WebParam(name = "userDetails") String userDetails) {
         try {
+            //obtain student details
             JsonObject makeAppointmentDetails = Json.createReader(new StringReader(userDetails)).readObject();
             String username = makeAppointmentDetails.getString("username");
+            //get lecturers for student from db
             getAssignedLecturers.setString(1, username);
             ResultSet resultSet = getAssignedLecturers.executeQuery();
             if (resultSet.first()) {
-
+                //student has assigned lecturers
                 Map<String, LecturerModel> lecturers = new HashMap<>();
-
+                //obtain details for each assigned lecturer
                 do {
                     String lecturerUsername = resultSet.getString(dbLecturerUserNameAtt);
                     LecturerModel lecturer;
@@ -352,7 +391,7 @@ public class AppointementServices {
 
                     lecturer.addSubject(resultSet.getString(dbSubjectAtt));
                 } while (resultSet.next());
-
+                //build json with all lecturer details
                 JsonArrayBuilder jsonLecturersArrayBuilder = Json.createArrayBuilder();
                 for (String lecturer : lecturers.keySet()) {
                     JsonArrayBuilder jsonSubjectsArrayBuilder = Json.createArrayBuilder();
@@ -370,41 +409,48 @@ public class AppointementServices {
                             add("department", lecturers.get(lecturer).getDepartment()).
                             add("subjects", jsonSubjectsArrayBuilder.build()));
                 }
-
+                //return json string with assigned lecturers
                 return Json.createObjectBuilder().
                         add("result", "true").
                         add("lecturers", jsonLecturersArrayBuilder.build()).build().toString();
             } else {
+                //student has no assigned lectures
                 return Json.createObjectBuilder().
                         add("result", "false").build().toString();
             }
         } catch (SQLException ex) {
+            //server error
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
         }
     }
 
     /**
-     * Web service operation
+     * Web service operation to obtain available appointments for a specific lecturer 
      *
      * @param userDetails
-     * @return
+     * @return list of available appointments for a specific lecturer
      */
     @WebMethod(operationName = "getAvailableAppointment")
     public String getAvailableAppointment(@WebParam(name = "userDetails") String userDetails) {
         try {
+            //obtain lecturer details
             JsonObject makeAppointmentDetails = Json.createReader(new StringReader(userDetails)).readObject();
             String username = makeAppointmentDetails.getString("username");
+            //look up db for avaialable appointment for lecturer
             getAvailableAppointments.setString(1, username);
             ResultSet resultSet = getAvailableAppointments.executeQuery();
             if (resultSet.first()) {
+                //lecturer has available appointments
                 List<AppointmentModel> appointments = new ArrayList<>();
+                //obtain available appointments
                 do {
                     appointments.add(new AppointmentModel(
                             resultSet.getString(dbDateAtt),
                             resultSet.getString(dbStartAtt),
                             resultSet.getString(dbEndAtt)));
                 } while (resultSet.next());
+                //build json result containing available appointment details
                 JsonArrayBuilder jsonAppointmentArrayBuilder
                         = Json.createArrayBuilder();
                 for (AppointmentModel appointment : appointments) {
@@ -413,30 +459,33 @@ public class AppointementServices {
                             add("start", appointment.getStart()).
                             add("end", appointment.getEnd()).build());
                 }
-
+                //return json string with avaialble appointments
                 return Json.createObjectBuilder().add("result", "true").
                         add("appointments", jsonAppointmentArrayBuilder.build()
                         ).build().toString();
 
             } else {
+                //no availbale appointments for given lecturer
                 return Json.createObjectBuilder().
                         add("result", "false").build().toString();
             }
         } catch (SQLException ex) {
+            //server error
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
         }
     }
 
     /**
-     * Web service operation
+     * Web service operation to book an appointment
      *
      * @param appointmentDetails
-     * @return
+     * @return book appointment result
      */
     @WebMethod(operationName = "bookAppointment")
     public String bookAppointment(@WebParam(name = "appointmentDetails") String appointmentDetails) {
         try {
+            //obtain appointment details for booking
             JsonObject makeAppointmentDetails = Json.createReader(new StringReader(appointmentDetails)).readObject();
             String studentUsername = makeAppointmentDetails.getString("studentUsername");
             String lecturerUserName = makeAppointmentDetails.getString("lecturerUsername");
@@ -444,6 +493,7 @@ public class AppointementServices {
             String start = makeAppointmentDetails.getString("start");
             String end = makeAppointmentDetails.getString("end");
 
+            //look up available appointemnt
             getAppointment.setString(1, date);
             getAppointment.setString(2, start);
             getAppointment.setString(3, end);
@@ -451,24 +501,28 @@ public class AppointementServices {
             ResultSet resultSet = getAppointment.executeQuery();
             if (resultSet.first()) {
                 String isActive = resultSet.getString(dbIsActiveAtt);
-
+                //check appointment is available
                 if (isActive.compareTo("available") == 0) {
+                    //appointment is available then proceed with booking by SQL update statement
                     bookAppointment.setString(1, studentUsername);
                     bookAppointment.setString(2, lecturerUserName);
                     bookAppointment.setString(3, date);
                     bookAppointment.setString(4, start);
                     bookAppointment.setString(5, end);
+                    //get lecturer and student details for booked appointment
                     int result = bookAppointment.executeUpdate();
                     getLecturer.setString(1, lecturerUserName);
                     ResultSet resultSet1 = getLecturer.executeQuery();
                     getStudent.setString(1, studentUsername);
                     ResultSet resultSet2 = getStudent.executeQuery();
                     if (result != 0 && resultSet1.first() && resultSet2.first()) {
+                        //send booked appointment, student and lecturer details to lecturer email
                         String lecturerEmail = resultSet1.getString(dbEmailAtt);
                         String studentFirstName = resultSet2.getString(dbFirstNameAtt);
                         String studentLastName = resultSet2.getString(dbLastNameAtt);
                         MimeMessage message = new MimeMessage(mailSession);
                         try {
+                            //create an email appointment with booking details
                             InternetAddress[] recipientAddress = {new InternetAddress(lecturerEmail)};
                             InternetAddress senderAddress = new InternetAddress(mailSession.getProperty("mail.from"));
                             message.addHeaderLine("method=REQUEST");
@@ -480,7 +534,6 @@ public class AppointementServices {
                                     + studentLastName);
                             Calendar calendar = Calendar.getInstance();
                             message.setSentDate(calendar.getTime());
-
                             StringBuilder stringBuilder = new StringBuilder();
                             StringBuilder buffer = stringBuilder.append("BEGIN:VCALENDAR\n"
                                     + "PRODID:-//Microsoft Corporation//Outlook 9.0 MIMEDIR//EN\n"
@@ -532,49 +585,57 @@ public class AppointementServices {
                         } catch (MessagingException | IOException ex) {
                             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
                         }
-
+                        //return confirmation result that appointment is booked
                         return Json.createObjectBuilder().add("result", "true").build().toString();
                     } else {
                         return Json.createObjectBuilder().
                                 add("result", "false").build().toString();
                     }
                 } else {
+                    //appointment cannot be booked result since it is not available
                     return Json.createObjectBuilder().add("result", "booked").build().toString();
                 }
             } else {
+                //server error
                 return Json.createObjectBuilder().add("result", "error").build().toString();
             }
 
         } catch (SQLException ex) {
+            //server error
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
         }
     }
 
     /**
-     * Web service operation
+     * Web service operation to obtain booked appointments
      *
      * @param userDetails
-     * @return
+     * @return list of booked appointments for a user
      */
     @WebMethod(operationName = "viewAppointment")
     public String viewAppointment(@WebParam(name = "userDetails") String userDetails) {
         try {
+            //obtain user detail
             JsonObject viewAppointmentDetails = Json.createReader(new StringReader(userDetails)).readObject();
             String username = viewAppointmentDetails.getString("username");
             String type = viewAppointmentDetails.getString("type");
             ResultSet resultSet;
+            //determine if user is student or lecturer
             if (type.compareToIgnoreCase("student") == 0) {
+                //get booked appointments for student from db
                 getStudentBookedAppointment.setString(1, username);
                 resultSet = getStudentBookedAppointment.executeQuery();
             } else {
+                //get booked appointments for lecturer from db
                 getLecturerBookedAppointment.setString(1, username);
                 resultSet = getLecturerBookedAppointment.executeQuery();
             }
             if (resultSet.first()) {
-
+                //booked appointments exist
                 List<BookedAppointmentModel> bookedAppointments = new ArrayList<>();
                 if (type.compareToIgnoreCase("student") == 0) {
+                    //create data model of booked appointments for student
                     do {
                         String lecturerUsername = resultSet.getString(dbLecturerUserNameAtt);
                         getLecturer.setString(1, lecturerUsername);
@@ -587,6 +648,7 @@ public class AppointementServices {
                         bookedAppointments.add(bookedAppointment);
                     } while (resultSet.next());
                 } else {
+                    //create data model of booked appointments for student
                     do {
                         String studentUsername = resultSet.getString(dbStudentUserNameAtt);
                         getStudent.setString(1, studentUsername);
@@ -600,6 +662,7 @@ public class AppointementServices {
                     } while (resultSet.next());
                 }
 
+                //build result json string from booked appointment data model
                 JsonArrayBuilder jsonBookedAppointmentsArrayBuilder = Json.createArrayBuilder();
                 for (BookedAppointmentModel appointment : bookedAppointments) {
 
@@ -612,22 +675,24 @@ public class AppointementServices {
                             add("end", appointment.getEnd()).
                             add("status", appointment.getStatus()).build());
                 }
-
+                //successful result returns json with booked appointments
                 return Json.createObjectBuilder().
                         add("result", "true").
                         add("appointments", jsonBookedAppointmentsArrayBuilder.build()).build().toString();
             } else {
+                //no booked appointments
                 return Json.createObjectBuilder().
                         add("result", "false").build().toString();
             }
         } catch (SQLException ex) {
+            //server error
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
         }
     }
 
     /**
-     * Web service operation
+     * Web service operation to cancel appointment
      *
      * @param appointmentDetails
      * @return
@@ -635,6 +700,7 @@ public class AppointementServices {
     @WebMethod(operationName = "cancelAppointment")
     public String cancelAppointment(@WebParam(name = "appointmentDetails") String appointmentDetails) {
         try {
+            //obtain appointement details from json string
             JsonObject cancelAppointmentDetails = Json.createReader(new StringReader(appointmentDetails)).readObject();
             String username = cancelAppointmentDetails.getString("username");
             String date = cancelAppointmentDetails.getString("date");
@@ -645,7 +711,9 @@ public class AppointementServices {
             String type = cancelAppointmentDetails.getString("type");
             int result;
             ResultSet resultSet;
+            //check if student or lecturer is cancelling
             if (type.compareTo("student") == 0) {
+                //update db with cancel, making appointment avaialble for other students
                 studentCancelAppointment.setString(1, username);
                 studentCancelAppointment.setString(2, date);
                 studentCancelAppointment.setString(3, start);
@@ -654,6 +722,7 @@ public class AppointementServices {
                 getLecturer.setString(1, username);
                 resultSet = getLecturer.executeQuery();
             } else {
+                //update db with cancel, appointment no longer available since lecturer has cancelled
                 lecturerCancelAppointment.setString(1, username);
                 lecturerCancelAppointment.setString(2, date);
                 lecturerCancelAppointment.setString(3, start);
@@ -666,6 +735,7 @@ public class AppointementServices {
 
                 MimeMessage message = new MimeMessage(mailSession);
                 try {
+                    //send cancel appointment, student and lecturer details to lecturer email
                     String lecturerEmail = resultSet.getString(dbEmailAtt);
                     InternetAddress[] recipientAddress = {new InternetAddress(lecturerEmail)};
                     InternetAddress senderAddress = new InternetAddress(mailSession.getProperty("mail.from"));
@@ -730,14 +800,16 @@ public class AppointementServices {
                 } catch (MessagingException | IOException ex) {
                     Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
                 }
-
+                //successful result
                 return Json.createObjectBuilder().
                         add("result", "true").build().toString();
             } else {
+                //server error
                 return Json.createObjectBuilder().
                         add("result", "error").build().toString();
             }
         } catch (SQLException ex) {
+            //server error
             Logger.getLogger(AppointementServices.class.getName()).log(Level.SEVERE, null, ex);
             return Json.createObjectBuilder().add("result", "error").build().toString();
         }

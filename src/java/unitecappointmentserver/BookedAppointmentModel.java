@@ -1,13 +1,10 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package unitecappointmentserver;
 
 /**
+ * Data model for a booked appointment
  *
- * @author zezo
+ * @author Marzouq Almarzooq (1380949)
+ * @author Nawaf Altuwayjiri (1377387)
  */
 public class BookedAppointmentModel {
     
@@ -19,6 +16,17 @@ public class BookedAppointmentModel {
     private final String end;
     private final String status;
     
+    /**
+     * Constructor
+     *
+     * @param username      booking username
+     * @param firstName     booking user first name
+     * @param date          appointment date
+     * @param lastName      booking user last name
+     * @param start         start time
+     * @param end           end time
+     * @param status        status of booking
+     */
     public BookedAppointmentModel(String username, String firstName, String lastName, String date, String start, String end, String status) {
         this.username = username;
         this.firstName = firstName;

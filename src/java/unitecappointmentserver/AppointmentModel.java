@@ -1,13 +1,10 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package unitecappointmentserver;
 
 /**
+ * Data model for an available appointment
  *
- * @author zezo
+ * @author Marzouq Almarzooq (1380949)
+ * @author Nawaf Altuwayjiri (1377387)
  */
 public class AppointmentModel {
     
@@ -15,6 +12,13 @@ public class AppointmentModel {
     private final String start;
     private final String end;
     
+    /**
+     * Constructor
+     *
+     * @param date      appointment date
+     * @param start     start time
+     * @param end       end time
+     */
     public AppointmentModel(String date, String start, String end) {
         this.date = date;
         this.start = start;
